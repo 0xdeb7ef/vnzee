@@ -133,6 +133,10 @@ pub fn create_artifact(b: *std.Build, t: Target, optimize: OptimizeMode) *Compil
     const vnzee = b.createModule(.{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
+        .strip = switch (optimize) {
+            .Debug => false,
+            .ReleaseFast, .ReleaseSafe, .ReleaseSmall => true,
+        },
         .imports = &.{
             .{ .name = "libvnc", .module = libvnc_mod },
         },
@@ -148,6 +152,10 @@ pub fn create_artifact(b: *std.Build, t: Target, optimize: OptimizeMode) *Compil
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
+            .strip = switch (optimize) {
+                .Debug => false,
+                .ReleaseFast, .ReleaseSafe, .ReleaseSmall => true,
+            },
             .imports = &.{
                 .{ .name = "vnzee", .module = vnzee },
                 .{ .name = "zqtfb", .module = zqtfb },
