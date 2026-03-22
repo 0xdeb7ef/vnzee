@@ -21,12 +21,16 @@ pub fn main(init: std.process.Init) !void {
     clock = .real;
     environ = init.minimal.environ;
 
+    const device = detect_device();
+
+    log.info("device type: {}", .{device});
+
     const fb = zqtfb.getIDFromAppLoad(init.minimal.environ) catch |err| {
         log.err("Unable to grab QTFB_KEY: {}", .{err});
         std.process.exit(1);
     };
 
-    // matches rmpp_rgb565 format
+    // matches rgb565 format
     const vnc_client = vnzee.getClient(0, 0, 0);
     vnc_client.appData.encodingsString = "copyrect";
     vnc_client.format.bitsPerPixel = 16;
@@ -56,7 +60,12 @@ pub fn main(init: std.process.Init) !void {
     if (!r) std.process.exit(1);
 
     // init zqtfb
-    zclient = zqtfb.Client.init(io, fb, .rMPP_rgb565, .{
+    const format: zqtfb.Message.FramebufferType = switch (device) {
+        .rM2 => .rM2_fb,
+        .rMPP => .rMPP_rgb565,
+        .rMPPM => .rMPPM_rgb565,
+    };
+    zclient = zqtfb.Client.init(io, fb, format, .{
         .width = @intCast(@min(vnc_client.width, vnc_client.height)),
         .height = @intCast(@max(vnc_client.width, vnc_client.height)),
     }, true) catch |err| {
@@ -115,4 +124,25 @@ fn update(client: ?*vnzee.Client, x: c_int, y: c_int, w: c_int, h: c_int) callco
     };
 
     last_update = now;
+}
+
+fn detect_device() zqtfb.Device {
+    const device_file = std.Io.Dir.cwd().openFile(io, "/sys/devices/soc0/machine", .{}) catch {
+        @panic("could not open /sys/devices/soc0/machine. Are you on a reMarkable device?");
+    };
+    defer device_file.close(io);
+
+    var buf: [64]u8 = undefined;
+
+    _ = device_file.readPositionalAll(io, &buf, 0) catch unreachable;
+
+    if (std.mem.containsAtLeast(u8, &buf, 1, "Chiappa")) {
+        return zqtfb.Device.rMPPM;
+    } else if (std.mem.containsAtLeast(u8, &buf, 1, "Ferrari")) {
+        return zqtfb.Device.rMPP;
+    } else if (std.mem.containsAtLeast(u8, &buf, 1, "2.0")) {
+        return zqtfb.Device.rM2;
+    } else {
+        return zqtfb.Device.rM2; // rM1 has same res as rM2
+    }
 }
