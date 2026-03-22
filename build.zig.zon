@@ -1,0 +1,23 @@
+.{
+    .name = .vnzee,
+    .version = "0.0.0",
+    .fingerprint = 0x177d85f15f6ef1ae, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.16.0-dev.2619+c8f54a2f0",
+    .dependencies = .{
+        // .libvncserver = .{
+        //     .url = "git+https://github.com/LibVNC/libvncserver?ref=LibVNCServer-0.9.15#9b54b1ec32731bd23158ca014dc18014db4194c3",
+        //     .hash = "N-V-__8AACB1KABStABwufto4WWCy0WYvzz98kwgOpXsGac3",
+        // },
+        .zqtfb = .{
+            .url = "git+https://github.com/0xdeb7ef/zqtfb.git?ref=zig-0.16#b630c5f6bbdaef4d9eea3dc0857a88fa627b42b5",
+            .hash = "zqtfb-0.4.1-mP8map6oXQBGvqaoTiC-Yj0_ZdIFSU1NlrxVNorIrd3A",
+        },
+    },
+    .paths = .{
+        "assets",
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "vendor",
+    },
+}

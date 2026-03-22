@@ -1,0 +1,13 @@
+prefix=/home/uid/Documents/Workspace/remarkable/vnzee/vendor/arm32
+exec_prefix=/home/uid/Documents/Workspace/remarkable/vnzee/vendor/arm32
+libdir=/home/uid/Documents/Workspace/remarkable/vnzee/vendor/arm32/lib
+includedir=/home/uid/Documents/Workspace/remarkable/vnzee/vendor/arm32/include
+
+Name: LibVNCServer
+Description: A library for easy implementation of a VNC server.
+Version: 0.9.15
+Requires:
+Requires.private:
+Libs: -L${libdir} -lvncserver
+Libs.private:  -lsystemd -lz -ljpeg -lpng -lgcrypt -lssl -lcrypto
+Cflags: -I${includedir}
