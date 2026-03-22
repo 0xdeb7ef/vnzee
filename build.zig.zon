@@ -1,6 +1,6 @@
 .{
     .name = .vnzee,
-    .version = "0.0.0",
+    .version = "0.1.0",
     .fingerprint = 0x177d85f15f6ef1ae, // Changing this has security and trust implications.
     .minimum_zig_version = "0.16.0-dev.2619+c8f54a2f0",
     .dependencies = .{
