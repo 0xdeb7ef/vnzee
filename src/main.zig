@@ -32,14 +32,19 @@ pub fn main(init: std.process.Init) !void {
         .env = init.minimal.environ,
     };
 
-    const device = detectDevice(ctx.io);
+    const fb_type = detectFramebuffer(ctx.io) catch |err| {
+        log.err("Unable to detect device type: {}", .{err});
+        std.process.exit(1);
+    };
 
-    log.info("device type: {}", .{device});
+    log.info("device type: {}, framebuffer: {}", .{ fb_type.getDevice(), fb_type });
 
     const fb = zqtfb.getIDFromAppLoad(init.minimal.environ) catch |err| {
         log.err("Unable to grab QTFB_KEY: {}", .{err});
         std.process.exit(1);
     };
+
+    log.info("QTFB_KEY: /qtfb_{d}", .{fb});
 
     // matches rgb565 format
     const vnc_client = vnzee.getClient(0, 0, 0);
@@ -77,7 +82,7 @@ pub fn main(init: std.process.Init) !void {
     if (!r) std.process.exit(1);
 
     // init zqtfb
-    ctx.zclient = zqtfb.Client.init(ctx.io, fb, device, .{
+    ctx.zclient = zqtfb.Client.init(ctx.io, fb, fb_type, .{
         .width = @intCast(@min(vnc_client.width, vnc_client.height)),
         .height = @intCast(@max(vnc_client.width, vnc_client.height)),
     }, true) catch |err| {
@@ -166,23 +171,12 @@ fn finishUpdate(client: ?*vnzee.Client) callconv(.c) void {
     ctx.dirty = null;
 }
 
-fn detectDevice(io: Io) zqtfb.Message.FramebufferType {
-    const device_file = std.Io.Dir.cwd().openFile(io, "/sys/devices/soc0/machine", .{}) catch {
-        @panic("could not open /sys/devices/soc0/machine. Are you on a reMarkable device?");
+fn detectFramebuffer(io: Io) !zqtfb.Message.FramebufferType {
+    const device = try zqtfb.Device.getDevice(io);
+
+    return switch (device) {
+        .rM2 => .rM2_fb,
+        .rMPP => .rMPP_rgb565,
+        .rMPPM => .rMPPM_rgb565,
     };
-    defer device_file.close(io);
-
-    var buf: [64]u8 = undefined;
-
-    _ = device_file.readPositionalAll(io, &buf, 0) catch unreachable;
-
-    if (std.mem.containsAtLeast(u8, &buf, 1, "Chiappa")) {
-        return zqtfb.Message.FramebufferType.rMPPM_rgb565;
-    } else if (std.mem.containsAtLeast(u8, &buf, 1, "Ferrari")) {
-        return zqtfb.Message.FramebufferType.rMPP_rgb565;
-    } else if (std.mem.containsAtLeast(u8, &buf, 1, "2.0")) {
-        return zqtfb.Message.FramebufferType.rM2_fb;
-    } else {
-        return zqtfb.Message.FramebufferType.rM2_fb; // rM1 has same res as rM2
-    }
 }
