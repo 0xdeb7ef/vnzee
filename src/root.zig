@@ -43,3 +43,11 @@ pub fn handleRFBServerMessage(client: *Client) bool {
     const r: Bool = @enumFromInt(libvnc.HandleRFBServerMessage(client));
     return r.toBool();
 }
+
+pub fn setClientData(client: *Client, tag: anytype, data: anytype) void {
+    libvnc.rfbClientSetClientData(client, @ptrCast(@constCast(tag)), @ptrCast(@constCast(data)));
+}
+
+pub fn getClientData(client: *Client, tag: anytype, T: type) *T {
+    return @ptrCast(@alignCast(libvnc.rfbClientGetClientData(client, @ptrCast(@constCast(tag)))));
+}
