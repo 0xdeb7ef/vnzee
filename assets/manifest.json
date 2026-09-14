@@ -2,7 +2,10 @@
   "name": "VNZee",
   "application": "vnzee",
   "qtfb": true,
-  "args": ["127.0.0.1:5900"],
+  "args": [
+    "-encodings", "copyrect tight zrle hextile raw",
+    "127.0.0.1:5900"
+  ],
   "environment": {
     "VNZEE_PASSWORD": "password"
   }

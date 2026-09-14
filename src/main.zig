@@ -1,6 +1,5 @@
 const std = @import("std");
 const Io = std.Io;
-const Clock = Io.Clock;
 const Environ = std.process.Environ;
 
 const vnzee = @import("vnzee");
@@ -8,14 +7,18 @@ const zqtfb = @import("zqtfb");
 
 const log = std.log.scoped(.vnzee);
 
-var last_update: std.Io.Timestamp = .zero;
-var buffer: []u8 = undefined;
+const Rect = struct {
+    left: c_int,
+    top: c_int,
+    right: c_int,
+    bottom: c_int,
+};
 
 const Context = struct {
     io: Io,
-    clock: Clock,
     env: Environ,
     zclient: zqtfb.Client,
+    dirty: ?Rect = null,
 };
 
 const Tag = enum {
@@ -25,12 +28,11 @@ const Tag = enum {
 pub fn main(init: std.process.Init) !void {
     var ctx = Context{
         .io = init.io,
-        .clock = .real,
         .zclient = undefined,
         .env = init.minimal.environ,
     };
 
-    const device = detect_device(ctx.io);
+    const device = detectDevice(ctx.io);
 
     log.info("device type: {}", .{device});
 
@@ -41,7 +43,7 @@ pub fn main(init: std.process.Init) !void {
 
     // matches rgb565 format
     const vnc_client = vnzee.getClient(0, 0, 0);
-    vnc_client.appData.encodingsString = "copyrect";
+    // vnc_client.appData.encodingsString = "copyrect tight zrle hextile raw";
     vnc_client.format.bitsPerPixel = 16;
     vnc_client.format.depth = 16;
     vnc_client.format.redShift = 11;
@@ -56,6 +58,7 @@ pub fn main(init: std.process.Init) !void {
 
     // callbacks
     vnc_client.GotFrameBufferUpdate = update;
+    vnc_client.FinishedFrameBufferUpdate = finishUpdate;
     vnc_client.GetPassword = struct {
         pub fn getPassword(client: ?*vnzee.Client) callconv(.c) ?[*]u8 {
             const c: *Context = vnzee.getClientData(client.?, &Tag.ctx, Context);
@@ -83,10 +86,6 @@ pub fn main(init: std.process.Init) !void {
     };
     defer ctx.zclient.deinit(ctx.io);
 
-    // create a buffer
-    buffer = try init.gpa.alloc(u8, @as(usize, ctx.zclient.width) * @as(usize, ctx.zclient.height) * ctx.zclient.getBPS());
-    defer init.gpa.free(buffer);
-
     ctx.zclient.setRefreshMode(ctx.io, .animate) catch unreachable;
     ctx.zclient.fullUpdate(ctx.io) catch unreachable;
 
@@ -98,66 +97,76 @@ pub fn main(init: std.process.Init) !void {
 
     // event loop
     while (true) {
-        _ = std.posix.poll(&poll_fds, 1) catch unreachable;
-        if (poll_fds[0].revents & std.posix.POLL.IN != 0) {
+        _ = try std.posix.poll(&poll_fds, if (vnc_client.buffered != 0) 0 else -1);
+        if (vnc_client.buffered != 0 or poll_fds[0].revents & std.posix.POLL.IN != 0) {
             if (!vnzee.handleRFBServerMessage(vnc_client)) break;
-        }
-
-        // const n = vnzee.waitForMessage(vnc_client, 1);
-        // if (n < 0) break;
-        // if (n > 0) if (!vnzee.handleRFBServerMessage(vnc_client)) break;
-
-        // check if no activity has happened in the last 3 seconds,
-        // set to content mode if so
-        if (last_update.untilNow(ctx.io, ctx.clock).toSeconds() > 3 and ctx.zclient.refresh_mode != .content) {
-            ctx.zclient.setRefreshMode(ctx.io, .content) catch unreachable;
-            ctx.zclient.fullUpdate(ctx.io) catch unreachable;
+        } else if (poll_fds[0].revents & (std.posix.POLL.ERR | std.posix.POLL.HUP | std.posix.POLL.NVAL) != 0) {
+            break;
         }
     }
-
-    std.process.exit(0);
 }
 
 fn update(client: ?*vnzee.Client, x: c_int, y: c_int, w: c_int, h: c_int) callconv(.c) void {
-    const ctx: *Context = vnzee.getClientData(client.?, &Tag.ctx, Context);
+    const vnc_client = client.?;
+    const ctx: *Context = vnzee.getClientData(vnc_client, &Tag.ctx, Context);
 
-    // reset to animate mode for faster refresh
-    const now = ctx.clock.now(ctx.io);
-    if (ctx.zclient.refresh_mode != .animate and
-        last_update.untilNow(ctx.io, ctx.clock).toSeconds() <= 3)
-    {
-        ctx.zclient.setRefreshMode(ctx.io, .animate) catch unreachable;
-    }
+    const width: usize = @intCast(vnc_client.width);
+    const height: usize = @intCast(vnc_client.height);
+    const left: usize = @intCast(x);
+    const top: usize = @intCast(y);
+    const right: usize = @intCast(x + w);
+    const bottom: usize = @intCast(y + h);
+    // const bps = ctx.zclient.getBPS();
+    const bps: usize = 2;
+    const rotate = width > height;
 
-    // rotate screen 90 degrees if it's landscape
-    const width: usize = @intCast(client.?.width);
-    const height: usize = @intCast(client.?.height);
-    if (width > height) {
-        for (0..height) |hh| {
-            for (0..width) |ww| {
-                const bps = ctx.zclient.getBPS();
-                const i = ctx.zclient.getPixel(@intCast(height - 1 - hh), @intCast(ww));
-                const ii = (hh * width + ww) * bps;
-                @memcpy(ctx.zclient.display[i .. i + bps], client.?.frameBuffer[ii .. ii + bps]);
+    // rotate the pixels and refresh bounds 90 degrees if the source is landscape
+    // this is slow, maybe there's a way to improve it?
+    if (rotate) {
+        for (top..bottom) |row| {
+            for (left..right) |col| {
+                const dst = (col * height + height - 1 - row) * bps;
+                const src = (row * width + col) * bps;
+                @memcpy(ctx.zclient.display[dst .. dst + bps], vnc_client.frameBuffer[src .. src + bps]);
             }
         }
-        // @memcpy(ctx.zclient.display, client.?.frameBuffer);
     } else {
-        @memcpy(ctx.zclient.display, client.?.frameBuffer);
-        // @memcpy(buffer, client.?.frameBuffer);
-        // @memcpy(c.zclient.display, buffer);
+        // this is also probably not optimal
+        for (top..bottom) |row| {
+            const start = (row * width + left) * bps;
+            const end = (row * width + right) * bps;
+            @memcpy(ctx.zclient.display[start..end], vnc_client.frameBuffer[start..end]);
+        }
     }
 
-    // now = ctx.clock.now(ctx.io);
-    if (last_update.durationTo(now).toMilliseconds() > 50) {
-        ctx.zclient.partialUpdate(ctx.io, x, y, w, h) catch |err| {
-            log.err("Error updating screen: {}", .{err});
-        };
-        last_update = now;
+    const rect = Rect{
+        .left = if (rotate) vnc_client.height - y - h else x,
+        .top = if (rotate) x else y,
+        .right = if (rotate) vnc_client.height - y else x + w,
+        .bottom = if (rotate) x + w else y + h,
+    };
+
+    if (ctx.dirty) |*dirty| {
+        dirty.left = @min(dirty.left, rect.left);
+        dirty.top = @min(dirty.top, rect.top);
+        dirty.right = @max(dirty.right, rect.right);
+        dirty.bottom = @max(dirty.bottom, rect.bottom);
+    } else {
+        ctx.dirty = rect;
     }
 }
 
-fn detect_device(io: Io) zqtfb.Message.FramebufferType {
+fn finishUpdate(client: ?*vnzee.Client) callconv(.c) void {
+    const ctx: *Context = vnzee.getClientData(client.?, &Tag.ctx, Context);
+    const rect = ctx.dirty orelse return;
+    ctx.zclient.partialUpdate(ctx.io, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top) catch |err| {
+        log.err("Error updating screen: {}", .{err});
+        return;
+    };
+    ctx.dirty = null;
+}
+
+fn detectDevice(io: Io) zqtfb.Message.FramebufferType {
     const device_file = std.Io.Dir.cwd().openFile(io, "/sys/devices/soc0/machine", .{}) catch {
         @panic("could not open /sys/devices/soc0/machine. Are you on a reMarkable device?");
     };
