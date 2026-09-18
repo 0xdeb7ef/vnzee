@@ -12,6 +12,10 @@
             .url = "git+https://github.com/0xdeb7ef/zqtfb?ref=v0.5.3#547b2c7599725e32c3396e87daf31edd8e8a4223",
             .hash = "zqtfb-0.5.3-mP8majKyXQDHubivzWqZcYJfgJX7IOzwZeJL4y1K9LbB",
         },
+        .zig_remarkable = .{
+            .url = "git+https://github.com/0xdeb7ef/zig-remarkable.git#139460a9a845ebca48443e051172c29fdb2a1cca",
+            .hash = "zig_remarkable-0.0.0-lp1TmLInAAAlY5EamT7E5wKVt8xkRl4R-KPKFhARENAD",
+        },
     },
     .paths = .{
         "assets",

@@ -1,5 +1,5 @@
 #ifndef _RFB_RFBCONFIG_H
-/* #undef _RFB_RFBCONFIG_H */
+#define _RFB_RFBCONFIG_H
  
 /* rfb/rfbconfig.h. Generated automatically by cmake. */
 
