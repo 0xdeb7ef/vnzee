@@ -94,19 +94,27 @@ pub fn main(init: std.process.Init) !void {
     ctx.zclient.setRefreshMode(ctx.io, .animate) catch unreachable;
     ctx.zclient.fullUpdate(ctx.io) catch unreachable;
 
-    var poll_fds: [1]std.posix.pollfd = .{.{
-        .fd = vnc_client.sock,
-        .events = std.posix.POLL.IN,
-        .revents = 0,
-    }};
+    var poll_fds: [1]std.posix.pollfd = .{
+        .{
+            .fd = vnc_client.sock,
+            .events = std.posix.POLL.IN,
+            .revents = 0,
+        },
+    };
 
     // event loop
-    while (true) {
+    while (true) event_loop: {
         _ = try std.posix.poll(&poll_fds, if (vnc_client.buffered != 0) 0 else -1);
+        const POLL_ERR = std.posix.POLL.ERR | std.posix.POLL.HUP | std.posix.POLL.NVAL;
+
+        for (poll_fds) |poll_fd| {
+            if (poll_fd.revents & POLL_ERR != 0) {
+                break :event_loop;
+            }
+        }
+
         if (vnc_client.buffered != 0 or poll_fds[0].revents & std.posix.POLL.IN != 0) {
             if (!vnzee.handleRFBServerMessage(vnc_client)) break;
-        } else if (poll_fds[0].revents & (std.posix.POLL.ERR | std.posix.POLL.HUP | std.posix.POLL.NVAL) != 0) {
-            break;
         }
     }
 }
@@ -121,8 +129,7 @@ fn update(client: ?*vnzee.Client, x: c_int, y: c_int, w: c_int, h: c_int) callco
     const top: usize = @intCast(y);
     const right: usize = @intCast(x + w);
     const bottom: usize = @intCast(y + h);
-    // const bps = ctx.zclient.getBPS();
-    const bps: usize = 2;
+    const bps = ctx.zclient.getBPS();
     const rotate = width > height;
 
     // rotate the pixels and refresh bounds 90 degrees if the source is landscape
@@ -132,11 +139,12 @@ fn update(client: ?*vnzee.Client, x: c_int, y: c_int, w: c_int, h: c_int) callco
             for (left..right) |col| {
                 const dst = (col * height + height - 1 - row) * bps;
                 const src = (row * width + col) * bps;
-                @memcpy(ctx.zclient.display[dst .. dst + bps], vnc_client.frameBuffer[src .. src + bps]);
+                // @memcpy(ctx.zclient.display[dst .. dst + bps], vnc_client.frameBuffer[src .. src + bps]);
+                // apparently, you can double-slice
+                @memcpy(ctx.zclient.display[dst..][0..bps], vnc_client.frameBuffer[src..][0..bps]);
             }
         }
     } else {
-        // this is also probably not optimal
         for (top..bottom) |row| {
             const start = (row * width + left) * bps;
             const end = (row * width + right) * bps;
@@ -164,7 +172,14 @@ fn update(client: ?*vnzee.Client, x: c_int, y: c_int, w: c_int, h: c_int) callco
 fn finishUpdate(client: ?*vnzee.Client) callconv(.c) void {
     const ctx: *Context = vnzee.getClientData(client.?, &Tag.ctx, Context);
     const rect = ctx.dirty orelse return;
-    ctx.zclient.partialUpdate(ctx.io, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top) catch |err| {
+
+    ctx.zclient.partialUpdate(
+        ctx.io,
+        rect.left,
+        rect.top,
+        rect.right - rect.left,
+        rect.bottom - rect.top,
+    ) catch |err| {
         log.err("Error updating screen: {}", .{err});
         return;
     };
