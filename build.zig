@@ -32,10 +32,10 @@ fn rm2_target(b: *std.Build) Target {
     return Target{
         .target = remarkable.resolve(b, .rm2),
         .include_dir = .{
-            .cwd_relative = "/opt/codex/rm1/5.8.203/sysroots/cortexa9hf-neon-remarkable-linux-gnueabi/usr/include",
+            .cwd_relative = "/opt/codex/rm2/5.8.203/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include",
         },
         .lib_dir = .{
-            .cwd_relative = "/opt/codex/rm1/5.8.203/sysroots/cortexa9hf-neon-remarkable-linux-gnueabi/usr/lib",
+            .cwd_relative = "/opt/codex/rm2/5.8.203/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/lib",
         },
         .vendor = b.path("vendor/rm2"),
         .name = "rm2",
@@ -78,7 +78,7 @@ pub fn create_artifact(b: *std.Build, t: Target, optimize: OptimizeMode) *Compil
 
     vnzee.addObjectFile(t.vendor.path(b, "lib/libvncclient.a"));
 
-    const zqtfb = b.dependency("zqtfb", .{}).module("zqtfb");
+    const zqtfb = b.dependency("zqtfb", .{ .target = target }).module("zqtfb");
 
     const exe = b.addExecutable(.{
         .name = "vnzee",

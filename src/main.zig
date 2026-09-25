@@ -83,13 +83,16 @@ pub fn main(init: std.process.Init) !void {
 
     // init zqtfb
     ctx.zclient = zqtfb.Client.init(ctx.io, fb, fb_type, .{
-        .width = @intCast(@min(vnc_client.width, vnc_client.height)),
-        .height = @intCast(@max(vnc_client.width, vnc_client.height)),
+        .width = @intCast(vnc_client.width),
+        .height = @intCast(vnc_client.height),
     }, true) catch |err| {
-        log.err("Unable to create qtfb client: {}", .{err});
+        log.err("Unable to create QTFB client: {}", .{err});
         std.process.exit(1);
     };
     defer ctx.zclient.deinit(ctx.io);
+
+    // map libvnc's framebuffer to zqtfb's display
+    vnc_client.frameBuffer = ctx.zclient.display.ptr;
 
     ctx.zclient.setRefreshMode(ctx.io, .animate) catch unreachable;
     ctx.zclient.fullUpdate(ctx.io) catch unreachable;
@@ -123,40 +126,11 @@ fn update(client: ?*vnzee.Client, x: c_int, y: c_int, w: c_int, h: c_int) callco
     const vnc_client = client.?;
     const ctx: *Context = vnzee.getClientData(vnc_client, &Tag.ctx, Context);
 
-    const width: usize = @intCast(vnc_client.width);
-    const height: usize = @intCast(vnc_client.height);
-    const left: usize = @intCast(x);
-    const top: usize = @intCast(y);
-    const right: usize = @intCast(x + w);
-    const bottom: usize = @intCast(y + h);
-    const bps = ctx.zclient.getBPS();
-    const rotate = width > height;
-
-    // rotate the pixels and refresh bounds 90 degrees if the source is landscape
-    // this is slow, maybe there's a way to improve it?
-    if (rotate) {
-        for (top..bottom) |row| {
-            for (left..right) |col| {
-                const dst = (col * height + height - 1 - row) * bps;
-                const src = (row * width + col) * bps;
-                // @memcpy(ctx.zclient.display[dst .. dst + bps], vnc_client.frameBuffer[src .. src + bps]);
-                // apparently, you can double-slice
-                @memcpy(ctx.zclient.display[dst..][0..bps], vnc_client.frameBuffer[src..][0..bps]);
-            }
-        }
-    } else {
-        for (top..bottom) |row| {
-            const start = (row * width + left) * bps;
-            const end = (row * width + right) * bps;
-            @memcpy(ctx.zclient.display[start..end], vnc_client.frameBuffer[start..end]);
-        }
-    }
-
     const rect = Rect{
-        .left = if (rotate) vnc_client.height - y - h else x,
-        .top = if (rotate) x else y,
-        .right = if (rotate) vnc_client.height - y else x + w,
-        .bottom = if (rotate) x + w else y + h,
+        .left = x,
+        .top = y,
+        .right = x + w,
+        .bottom = y + h,
     };
 
     if (ctx.dirty) |*dirty| {
@@ -193,5 +167,6 @@ fn detectFramebuffer(io: Io) !zqtfb.Message.FramebufferType {
         .rM2 => .rM2_fb,
         .rMPP => .rMPP_rgb565,
         .rMPPM => .rMPPM_rgb565,
+        .rMPPure => .rMPPure_rgb565,
     };
 }
