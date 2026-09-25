@@ -25,9 +25,15 @@ You can also pass an `-encodings` parameter in order to control which encodings 
 
 <!--## Vellum Install
 
+Run the following on your tablet:
+
 ```
 vellum add vnzee
-```-->
+```
+
+It's that simple!
+
+You can also use [reManager](https://remanager.io).-->
 
 ## Source Install
 
@@ -38,12 +44,18 @@ vellum add vnzee
 
 ### Building
 
-Run zig build to get builds for the reMarkable 2 and reMarkable Paper Pro:
+Run zig build to get builds for all devices:
 
 ```
 zig build -Doptimize=ReleaseFast
 ```
 
+You may also build for a specific device:
+
+```
+zig build -Doptimize=ReleaseFast -Ddevice=rmpp
+```
+
 ### Installing
 
-Copy whatever is in `zig-out/rmpp` or `zig-out/rm2` to `~/xovi/exthome/appload/vnzee` on your tablet.
+`zig-out` will contain the folder for each device, copy that into `~/xovi/exthome/appload/vnzee`

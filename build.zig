@@ -14,17 +14,17 @@ const Target = struct {
     name: []const u8,
 };
 
-fn rmpp_target(b: *std.Build) Target {
+fn rm1_target(b: *std.Build) Target {
     return Target{
-        .target = remarkable.resolve(b, .ferrari),
+        .target = remarkable.resolve(b, .rm1),
         .include_dir = .{
-            .cwd_relative = "/opt/codex/ferrari/5.8.203/sysroots/cortexa53-crypto-remarkable-linux/usr/include",
+            .cwd_relative = "/opt/codex/rm1/5.8.203/sysroots/cortexa9hf-neon-remarkable-linux-gnueabi/usr/include",
         },
         .lib_dir = .{
-            .cwd_relative = "/opt/codex/ferrari/5.8.203/sysroots/cortexa53-crypto-remarkable-linux/usr/lib",
+            .cwd_relative = "/opt/codex/rm1/5.8.203/sysroots/cortexa9hf-neon-remarkable-linux-gnueabi/usr/lib",
         },
-        .vendor = b.path("vendor/rmpp"),
-        .name = "rmpp",
+        .vendor = b.path("vendor/rm1"),
+        .name = "rm1",
     };
 }
 
@@ -39,6 +39,48 @@ fn rm2_target(b: *std.Build) Target {
         },
         .vendor = b.path("vendor/rm2"),
         .name = "rm2",
+    };
+}
+
+fn ferrari_target(b: *std.Build) Target {
+    return Target{
+        .target = remarkable.resolve(b, .ferrari),
+        .include_dir = .{
+            .cwd_relative = "/opt/codex/ferrari/5.8.203/sysroots/cortexa53-crypto-remarkable-linux/usr/include",
+        },
+        .lib_dir = .{
+            .cwd_relative = "/opt/codex/ferrari/5.8.203/sysroots/cortexa53-crypto-remarkable-linux/usr/lib",
+        },
+        .vendor = b.path("vendor/ferrari"),
+        .name = "ferrari",
+    };
+}
+
+fn chiappa_target(b: *std.Build) Target {
+    return Target{
+        .target = remarkable.resolve(b, .chiappa),
+        .include_dir = .{
+            .cwd_relative = "/opt/codex/chiappa/5.8.203/sysroots/cortexa55-remarkable-linux/usr/include",
+        },
+        .lib_dir = .{
+            .cwd_relative = "/opt/codex/chiappa/5.8.203/sysroots/cortexa55-remarkable-linux/usr/lib",
+        },
+        .vendor = b.path("vendor/chiappa"),
+        .name = "chiappa",
+    };
+}
+
+fn tatsu_target(b: *std.Build) Target {
+    return Target{
+        .target = remarkable.resolve(b, .tatsu),
+        .include_dir = .{
+            .cwd_relative = "/opt/codex/tatsu/5.8.203/sysroots/cortexa55-remarkable-linux/usr/include",
+        },
+        .lib_dir = .{
+            .cwd_relative = "/opt/codex/tatsu/5.8.203/sysroots/cortexa55-remarkable-linux/usr/lib",
+        },
+        .vendor = b.path("vendor/tatsu"),
+        .name = "tatsu",
     };
 }
 
@@ -99,34 +141,62 @@ pub fn create_artifact(b: *std.Build, t: Target, optimize: OptimizeMode) *Compil
     return exe;
 }
 
+const Targets = enum {
+    rm1,
+    rm2,
+    rmpp,
+    rmppm,
+    rmppure,
+    all,
+};
+
 pub fn build(b: *std.Build) void {
-    const targets = [_]Target{ rmpp_target(b), rm2_target(b) };
+    const all_targets = [_]?Target{
+        rm1_target(b),
+        rm2_target(b),
+        ferrari_target(b),
+        chiappa_target(b),
+        tatsu_target(b),
+    };
+
+    const device = b.option(Targets, "device", "reMarkable device to build for (default: all)") orelse .all;
     const optimize = b.standardOptimizeOption(.{});
 
-    for (targets) |target| {
-        const c = create_artifact(b, target, optimize);
-        const exe = b.addInstallArtifact(c, .{
-            .dest_dir = .{
-                .override = .{
-                    .custom = target.name,
+    const targets: [5]?Target = switch (device) {
+        .rm1 => [5]?Target{ all_targets[0], null, null, null, null },
+        .rm2 => [5]?Target{ all_targets[1], null, null, null, null },
+        .rmpp => [5]?Target{ all_targets[2], null, null, null, null },
+        .rmppm => [5]?Target{ all_targets[3], null, null, null, null },
+        .rmppure => [5]?Target{ all_targets[4], null, null, null, null },
+        .all => all_targets,
+    };
+
+    for (targets) |t| {
+        if (t) |target| {
+            const c = create_artifact(b, target, optimize);
+            const exe = b.addInstallArtifact(c, .{
+                .dest_dir = .{
+                    .override = .{
+                        .custom = target.name,
+                    },
                 },
-            },
-        });
+            });
 
-        const manifest = b.addInstallFileWithDir(
-            b.path("assets/manifest.json"),
-            .{ .custom = target.name },
-            "external.manifest.json",
-        );
+            const manifest = b.addInstallFileWithDir(
+                b.path("assets/manifest.json"),
+                .{ .custom = target.name },
+                "external.manifest.json",
+            );
 
-        // const icon = b.addInstallFileWithDir(
-        //     b.path("assets/icon.png"),
-        //     .{ .custom = target.name },
-        //     "icon.png",
-        // );
+            // const icon = b.addInstallFileWithDir(
+            //     b.path("assets/icon.png"),
+            //     .{ .custom = target.name },
+            //     "icon.png",
+            // );
 
-        b.getInstallStep().dependOn(&exe.step);
-        b.getInstallStep().dependOn(&manifest.step);
-        // b.getInstallStep().dependOn(&icon.step);
+            b.getInstallStep().dependOn(&exe.step);
+            b.getInstallStep().dependOn(&manifest.step);
+            // b.getInstallStep().dependOn(&icon.step);
+        }
     }
 }
