@@ -9,8 +9,8 @@
         //     .hash = "N-V-__8AACB1KABStABwufto4WWCy0WYvzz98kwgOpXsGac3",
         // },
         .zqtfb = .{
-            .url = "git+https://github.com/0xdeb7ef/zqtfb.git?ref=v0.6.0#4dd822d3d636e8d51cb09b2f1516705165e4be6f",
-            .hash = "zqtfb-0.6.0-mP8mamSzXQDIrBfQaPWia5aKmnx4g8uIVHr6xBwfzPvR",
+            .url = "git+https://github.com/0xdeb7ef/zqtfb.git?ref=v0.6.0#a244ffda237c4a050253543af4a040c069256b8d",
+            .hash = "zqtfb-0.6.0-mP8map6zXQCpSgr7P3Lye_ALjkxvCgKeMyW6qPdHRfBc",
         },
         .zig_remarkable = .{
             .url = "git+https://github.com/0xdeb7ef/zig-remarkable.git#1ab37c1cc3c56b0e2a8f0612f5ed7eb633e84ef1",

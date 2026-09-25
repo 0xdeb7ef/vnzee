@@ -120,7 +120,7 @@ pub fn create_artifact(b: *std.Build, t: Target, optimize: OptimizeMode) *Compil
 
     vnzee.addObjectFile(t.vendor.path(b, "lib/libvncclient.a"));
 
-    const zqtfb = b.dependency("zqtfb", .{ .target = target }).module("zqtfb");
+    const zqtfb = b.dependency("zqtfb", .{}).module("zqtfb");
 
     const exe = b.addExecutable(.{
         .name = "vnzee",
