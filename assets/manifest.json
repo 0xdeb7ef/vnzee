@@ -3,7 +3,6 @@
   "application": "vnzee",
   "qtfb": true,
   "args": [
-    "-encodings", "copyrect tight zrle hextile raw",
     "127.0.0.1:5900"
   ],
   "environment": {

@@ -19,6 +19,7 @@ const Context = struct {
     env: Environ,
     zclient: zqtfb.Client,
     dirty: ?Rect = null,
+    input_id: ?i32 = null,
 };
 
 const Tag = enum {
@@ -97,9 +98,14 @@ pub fn main(init: std.process.Init) !void {
     ctx.zclient.setRefreshMode(ctx.io, .animate) catch unreachable;
     ctx.zclient.fullUpdate(ctx.io) catch unreachable;
 
-    var poll_fds: [1]std.posix.pollfd = .{
+    var poll_fds: [2]std.posix.pollfd = .{
         .{
             .fd = vnc_client.sock,
+            .events = std.posix.POLL.IN,
+            .revents = 0,
+        },
+        .{
+            .fd = ctx.zclient.socket.socket.handle,
             .events = std.posix.POLL.IN,
             .revents = 0,
         },
@@ -116,9 +122,62 @@ pub fn main(init: std.process.Init) !void {
             }
         }
 
+        if (poll_fds[1].revents & std.posix.POLL.IN != 0) {
+            const packet = try ctx.zclient.pollServerPacket(ctx.io);
+            if (packet.type == .user_input) {
+                handleInput(vnc_client, packet);
+            }
+        }
+
         if (vnc_client.buffered != 0 or poll_fds[0].revents & std.posix.POLL.IN != 0) {
             if (!vnzee.handleRFBServerMessage(vnc_client)) break;
         }
+    }
+}
+
+fn handleInput(client: *vnzee.Client, packet: zqtfb.Message.ServerMessage) void {
+    const ctx: *Context = vnzee.getClientData(client, &Tag.ctx, Context);
+
+    switch (packet.message.input.type) {
+        .pen_press => {
+            if (ctx.input_id == null) {
+                ctx.input_id = packet.message.input.device_id;
+                const x = packet.message.input.x;
+                const y = packet.message.input.y;
+
+                _ = vnzee.sendPointerEvent(client, x, y, .{ .button1 = true });
+            }
+        },
+        .pen_update => {
+            if (ctx.input_id == packet.message.input.device_id) {
+                const x = packet.message.input.x;
+                const y = packet.message.input.y;
+
+                _ = vnzee.sendPointerEvent(client, x, y, .{ .button1 = true });
+            }
+        },
+        .pen_release => {
+            if (ctx.input_id == packet.message.input.device_id) {
+                const x = packet.message.input.x;
+                const y = packet.message.input.y;
+
+                _ = vnzee.sendPointerEvent(client, x, y, .{ .button1 = false });
+            }
+        },
+        .touch_release => {
+            if (ctx.zclient.refresh_mode == .animate) {
+                ctx.zclient.setRefreshMode(ctx.io, .ufast) catch |err| {
+                    log.err("Unable to update refresh mode: {}", .{err});
+                };
+            } else {
+                ctx.zclient.setRefreshMode(ctx.io, .animate) catch |err| {
+                    log.err("Unable to update refresh mode: {}", .{err});
+                };
+            }
+        },
+        else => {
+            return;
+        },
     }
 }
 

@@ -51,3 +51,28 @@ pub fn setClientData(client: *Client, tag: anytype, data: anytype) void {
 pub fn getClientData(client: *Client, tag: anytype, T: type) *T {
     return @ptrCast(@alignCast(libvnc.rfbClientGetClientData(client, @ptrCast(@constCast(tag)))));
 }
+
+pub const ButtonMask = struct {
+    button1: bool = false,
+    button2: bool = false,
+    button3: bool = false,
+    button4: bool = false,
+    button5: bool = false,
+
+    pub fn toMask(mask: ButtonMask) c_int {
+        var m: c_int = 0;
+
+        if (mask.button1) m |= libvnc.rfbButton1Mask;
+        if (mask.button2) m |= libvnc.rfbButton2Mask;
+        if (mask.button3) m |= libvnc.rfbButton3Mask;
+        if (mask.button4) m |= libvnc.rfbButton4Mask;
+        if (mask.button5) m |= libvnc.rfbButton5Mask;
+
+        return m;
+    }
+};
+
+pub fn sendPointerEvent(client: *Client, x: c_int, y: c_int, button_mask: ButtonMask) bool {
+    const r: Bool = @enumFromInt(libvnc.SendPointerEvent(client, x, y, button_mask.toMask()));
+    return r.toBool();
+}
