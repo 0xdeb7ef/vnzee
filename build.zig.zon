@@ -1,20 +1,16 @@
 .{
     .name = .vnzee,
-    .version = "0.1.0",
+    .version = "0.2.1",
     .fingerprint = 0x177d85f15f6ef1ae, // Changing this has security and trust implications.
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         // .libvncserver = .{
         //     .url = "git+https://github.com/LibVNC/libvncserver?ref=LibVNCServer-0.9.15#9b54b1ec32731bd23158ca014dc18014db4194c3",
         //     .hash = "N-V-__8AACB1KABStABwufto4WWCy0WYvzz98kwgOpXsGac3",
         // },
         .zqtfb = .{
-            .url = "git+https://github.com/0xdeb7ef/zqtfb.git?ref=v0.6.0#a244ffda237c4a050253543af4a040c069256b8d",
-            .hash = "zqtfb-0.6.0-mP8map6zXQCpSgr7P3Lye_ALjkxvCgKeMyW6qPdHRfBc",
-        },
-        .zig_remarkable = .{
-            .url = "git+https://github.com/0xdeb7ef/zig-remarkable.git#1ab37c1cc3c56b0e2a8f0612f5ed7eb633e84ef1",
-            .hash = "zig_remarkable-0.0.0-lp1TmLgnAABt6gqS0yBfqZE0Pk3YKrH4qGSGtlY8TGID",
+            .url = "git+https://github.com/0xdeb7ef/zqtfb.git?ref=v0.6.0#9fd45415f1d2934265fde39eda4a8d8b501d77fb",
+            .hash = "zqtfb-0.6.0-mP8marazXQAx_GOLAw5eB8rKOaoxZ4WOXHD2m6V4NrM7",
         },
     },
     .paths = .{

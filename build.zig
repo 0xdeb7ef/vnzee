@@ -4,7 +4,7 @@ const LazyPath = std.Build.LazyPath;
 const Compile = std.Build.Step.Compile;
 const OptimizeMode = std.builtin.OptimizeMode;
 
-const remarkable = @import("zig_remarkable");
+const remarkable = @import("zqtfb").remarkable;
 
 const Target = struct {
     target: ResolvedTarget,
