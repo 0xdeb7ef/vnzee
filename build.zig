@@ -195,10 +195,10 @@ pub fn build(b: *std.Build) void {
 
             const json = std.fmt.allocPrint(
                 b.allocator,
-                "{f}",
+                "{f}\n",
                 .{std.json.fmt(
                     Manifest,
-                    .{ .whitespace = .indent_4 },
+                    .{ .whitespace = .indent_2 },
                 )},
             ) catch unreachable;
 
