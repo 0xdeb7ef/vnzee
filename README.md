@@ -40,7 +40,7 @@ You can also use [reManager](https://remanager.io).-->
 ### Prerequisites
 
 - [reMarkable SDK](https://developer.remarkable.com/links) version 5.8.203
-- [Zig](https://ziglang.org) version 0.16.0+
+- [Zig](https://ziglang.org) version 0.17.0+
 
 ### Building
 
