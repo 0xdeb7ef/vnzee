@@ -18,7 +18,6 @@
         },
     },
     .paths = .{
-        "assets",
         "build.zig",
         "build.zig.zon",
         "src",

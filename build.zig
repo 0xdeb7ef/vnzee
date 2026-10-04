@@ -15,6 +15,16 @@ const Target = struct {
     name: []const u8,
 };
 
+const Manifest = .{
+    .name = "VNZee",
+    .application = "vnzee",
+    .qtfb = true,
+    .args = &.{ "127.0.0.1", "5900" },
+    .environment = .{
+        .VNZEE_PASSWORD = "password",
+    },
+};
+
 fn rm1_target(b: *std.Build) Target {
     return Target{
         .target = remarkable.resolve(b, .rm1),
@@ -124,7 +134,7 @@ pub fn create_artifact(b: *std.Build, t: Target, optimize: OptimizeMode) *Compil
     const zqtfb = b.dependency("zqtfb", .{}).module("zqtfb");
 
     const exe = b.addExecutable(.{
-        .name = "vnzee",
+        .name = Manifest.application,
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
@@ -183,11 +193,26 @@ pub fn build(b: *std.Build) void {
                 },
             });
 
+            const json = std.fmt.allocPrint(
+                b.allocator,
+                "{f}",
+                .{std.json.fmt(
+                    Manifest,
+                    .{ .whitespace = .indent_4 },
+                )},
+            ) catch unreachable;
+
             const manifest = b.addInstallFileWithDir(
-                b.path("assets/manifest.json"),
+                b.addWriteFiles().add("manifest", json),
                 .{ .custom = target.name },
                 "external.manifest.json",
             );
+
+            // const manifest = b.addInstallFileWithDir(
+            //     b.path("assets/manifest.json"),
+            //     .{ .custom = target.name },
+            //     "external.manifest.json",
+            // );
 
             // const icon = b.addInstallFileWithDir(
             //     b.path("assets/icon.png"),
