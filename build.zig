@@ -5,6 +5,7 @@ const Compile = std.Build.Step.Compile;
 const OptimizeMode = std.builtin.OptimizeMode;
 
 const remarkable = @import("zqtfb").remarkable;
+const Translator = @import("translate_c").Translator;
 
 const Target = struct {
     target: ResolvedTarget,
@@ -86,19 +87,19 @@ fn tatsu_target(b: *std.Build) Target {
 
 pub fn create_artifact(b: *std.Build, t: Target, optimize: OptimizeMode) *Compile {
     const target = t.target;
+    const translate_c = b.dependency("translate_c", .{});
 
-    const rfbclient = t.vendor.path(b, "include/rfb/rfbclient.h");
-    const rfbclient_c = b.addTranslateC(.{
-        .root_source_file = rfbclient,
+    const rfbclient: Translator = .init(translate_c, .{
+        .c_source_file = t.vendor.path(b, "include/rfb/rfbclient.h"),
         .target = target,
         .optimize = optimize,
-        .link_libc = true,
+        .default_init = false,
     });
 
-    rfbclient_c.addSystemIncludePath(t.vendor.path(b, "include"));
-    rfbclient_c.addSystemIncludePath(t.include_dir);
+    rfbclient.addIncludePath(t.vendor.path(b, "include"));
+    rfbclient.addSystemIncludePath(t.include_dir);
 
-    const libvnc_mod = rfbclient_c.createModule();
+    const libvnc_mod = rfbclient.mod;
     libvnc_mod.addLibraryPath(t.lib_dir);
     libvnc_mod.addSystemIncludePath(t.include_dir);
     libvnc_mod.linkSystemLibrary("openssl", .{});

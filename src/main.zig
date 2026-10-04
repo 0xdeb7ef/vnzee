@@ -48,26 +48,27 @@ pub fn main(init: std.process.Init) !void {
     log.info("QTFB_KEY: /qtfb_{d}", .{fb});
 
     // matches rgb565 format
-    const vnc_client = vnzee.getClient(0, 0, 0);
+    const vnc: vnzee.Client = .getClient(0, 0, 0);
     // vnc_client.appData.encodingsString = "copyrect tight zrle hextile raw";
-    vnc_client.format.bitsPerPixel = 16;
-    vnc_client.format.depth = 16;
-    vnc_client.format.redShift = 11;
-    vnc_client.format.redMax = (1 << 5) - 1;
-    vnc_client.format.greenShift = 5;
-    vnc_client.format.greenMax = (1 << 6) - 1;
-    vnc_client.format.blueShift = 0;
-    vnc_client.format.blueMax = (1 << 5) - 1;
+    vnc.client.format.bitsPerPixel = 16;
+    vnc.client.format.depth = 16;
+    vnc.client.format.redShift = 11;
+    vnc.client.format.redMax = (1 << 5) - 1;
+    vnc.client.format.greenShift = 5;
+    vnc.client.format.greenMax = (1 << 6) - 1;
+    vnc.client.format.blueShift = 0;
+    vnc.client.format.blueMax = (1 << 5) - 1;
 
     // client data
-    vnzee.setClientData(vnc_client, &Tag.ctx, &ctx);
+    vnc.setClientData(&Tag.ctx, &ctx);
 
     // callbacks
-    vnc_client.GotFrameBufferUpdate = update;
-    vnc_client.FinishedFrameBufferUpdate = finishUpdate;
-    vnc_client.GetPassword = struct {
-        pub fn getPassword(client: ?*vnzee.Client) callconv(.c) ?[*]u8 {
-            const c: *Context = vnzee.getClientData(client.?, &Tag.ctx, Context);
+    vnc.client.GotFrameBufferUpdate = update;
+    vnc.client.FinishedFrameBufferUpdate = finishUpdate;
+    vnc.client.GetPassword = struct {
+        pub fn getPassword(client: ?*vnzee.rfbClient) callconv(.c) ?[*]u8 {
+            const v: vnzee.Client = .init(client.?);
+            const c: *Context = v.getClientData(&Tag.ctx, Context);
 
             const password = c.env.getPosix("VNZEE_PASSWORD") orelse "";
             const pw = std.heap.c_allocator.dupeSentinel(u8, password, 0) catch {
@@ -78,14 +79,14 @@ pub fn main(init: std.process.Init) !void {
     }.getPassword;
 
     // init libvnc
-    const r = vnzee.initClient(vnc_client, &init.minimal.args);
-    defer if (r) vnzee.cleanupClient(vnc_client);
+    const r = vnc.initClient(&init.minimal.args);
+    defer if (r) vnc.cleanupClient();
     if (!r) std.process.exit(1);
 
     // init zqtfb
     ctx.zclient = zqtfb.Client.init(ctx.io, fb, fb_type, .{
-        .width = @intCast(vnc_client.width),
-        .height = @intCast(vnc_client.height),
+        .width = @intCast(vnc.client.width),
+        .height = @intCast(vnc.client.height),
     }, true) catch |err| {
         log.err("Unable to create QTFB client: {}", .{err});
         std.process.exit(1);
@@ -93,14 +94,14 @@ pub fn main(init: std.process.Init) !void {
     defer ctx.zclient.deinit(ctx.io);
 
     // map libvnc's framebuffer to zqtfb's display
-    vnc_client.frameBuffer = ctx.zclient.display.ptr;
+    vnc.client.frameBuffer = ctx.zclient.display.ptr;
 
     ctx.zclient.setRefreshMode(ctx.io, .animate) catch unreachable;
     ctx.zclient.fullUpdate(ctx.io) catch unreachable;
 
     var poll_fds: [2]std.posix.pollfd = .{
         .{
-            .fd = vnc_client.sock,
+            .fd = vnc.client.sock,
             .events = std.posix.POLL.IN,
             .revents = 0,
         },
@@ -113,7 +114,7 @@ pub fn main(init: std.process.Init) !void {
 
     // event loop
     while (true) event_loop: {
-        _ = try std.posix.poll(&poll_fds, if (vnc_client.buffered != 0) 0 else -1);
+        _ = try std.posix.poll(&poll_fds, if (vnc.client.buffered != 0) 0 else -1);
         const POLL_ERR = std.posix.POLL.ERR | std.posix.POLL.HUP | std.posix.POLL.NVAL;
 
         for (poll_fds) |poll_fd| {
@@ -125,18 +126,18 @@ pub fn main(init: std.process.Init) !void {
         if (poll_fds[1].revents & std.posix.POLL.IN != 0) {
             const packet = try ctx.zclient.pollServerPacket(ctx.io);
             if (packet.type == .user_input) {
-                handleInput(vnc_client, packet);
+                handleInput(vnc, packet);
             }
         }
 
-        if (vnc_client.buffered != 0 or poll_fds[0].revents & std.posix.POLL.IN != 0) {
-            if (!vnzee.handleRFBServerMessage(vnc_client)) break;
+        if (vnc.client.buffered != 0 or poll_fds[0].revents & std.posix.POLL.IN != 0) {
+            if (!vnc.handleRFBServerMessage()) break;
         }
     }
 }
 
-fn handleInput(client: *vnzee.Client, packet: zqtfb.Message.ServerMessage) void {
-    const ctx: *Context = vnzee.getClientData(client, &Tag.ctx, Context);
+fn handleInput(client: vnzee.Client, packet: zqtfb.Message.ServerMessage) void {
+    const ctx: *Context = client.getClientData(&Tag.ctx, Context);
 
     switch (packet.message.input.type) {
         .pen_press => {
@@ -145,7 +146,7 @@ fn handleInput(client: *vnzee.Client, packet: zqtfb.Message.ServerMessage) void 
                 const x = packet.message.input.x;
                 const y = packet.message.input.y;
 
-                _ = vnzee.sendPointerEvent(client, x, y, .{ .button1 = true });
+                _ = client.sendPointerEvent(x, y, .{ .button1 = true });
             }
         },
         .pen_update => {
@@ -153,7 +154,7 @@ fn handleInput(client: *vnzee.Client, packet: zqtfb.Message.ServerMessage) void 
                 const x = packet.message.input.x;
                 const y = packet.message.input.y;
 
-                _ = vnzee.sendPointerEvent(client, x, y, .{ .button1 = true });
+                _ = client.sendPointerEvent(x, y, .{ .button1 = true });
             }
         },
         .pen_release => {
@@ -161,7 +162,7 @@ fn handleInput(client: *vnzee.Client, packet: zqtfb.Message.ServerMessage) void 
                 const x = packet.message.input.x;
                 const y = packet.message.input.y;
 
-                _ = vnzee.sendPointerEvent(client, x, y, .{ .button1 = false });
+                _ = client.sendPointerEvent(x, y, .{ .button1 = false });
             }
         },
         .touch_release => {
@@ -181,9 +182,9 @@ fn handleInput(client: *vnzee.Client, packet: zqtfb.Message.ServerMessage) void 
     }
 }
 
-fn update(client: ?*vnzee.Client, x: c_int, y: c_int, w: c_int, h: c_int) callconv(.c) void {
-    const vnc_client = client.?;
-    const ctx: *Context = vnzee.getClientData(vnc_client, &Tag.ctx, Context);
+fn update(client: ?*vnzee.rfbClient, x: c_int, y: c_int, w: c_int, h: c_int) callconv(.c) void {
+    const vnc: vnzee.Client = .init(client.?);
+    const ctx: *Context = vnc.getClientData(&Tag.ctx, Context);
 
     const rect = Rect{
         .left = x,
@@ -202,8 +203,9 @@ fn update(client: ?*vnzee.Client, x: c_int, y: c_int, w: c_int, h: c_int) callco
     }
 }
 
-fn finishUpdate(client: ?*vnzee.Client) callconv(.c) void {
-    const ctx: *Context = vnzee.getClientData(client.?, &Tag.ctx, Context);
+fn finishUpdate(client: ?*vnzee.rfbClient) callconv(.c) void {
+    const vnc: vnzee.Client = .init(client.?);
+    const ctx: *Context = vnc.getClientData(&Tag.ctx, Context);
     const rect = ctx.dirty orelse return;
 
     ctx.zclient.partialUpdate(
