@@ -204,15 +204,9 @@ pub fn build(b: *std.Build) void {
 
             const manifest = b.addInstallFileWithDir(
                 b.addWriteFiles().add("manifest", json),
-                .{ .custom = target.name },
+                exe.dest_dir.?,
                 "external.manifest.json",
             );
-
-            // const manifest = b.addInstallFileWithDir(
-            //     b.path("assets/manifest.json"),
-            //     .{ .custom = target.name },
-            //     "external.manifest.json",
-            // );
 
             // const icon = b.addInstallFileWithDir(
             //     b.path("assets/icon.png"),
